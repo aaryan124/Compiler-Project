@@ -1,0 +1,281 @@
+================================================================================
+                    C-SUBSET COMPILER DOCUMENTATION
+================================================================================
+
+1. INTRODUCTION
+--------------------------------------------------------------------------------
+This documentation serves as a comprehensive, deep-dive architectural manual 
+and user guide for the C-Subset Compiler. This compiler translates a simplified, 
+function-oriented subset of the C programming language into standard 32-bit x86 
+Intel Assembly code (NASM format). 
+
+Designed as a multi-pass pipeline, the compiler accepts human-readable C code 
+and rigorously pushes it through standard theoretical phases: Lexical Analysis, 
+Syntax Analysis, Semantic Analysis, Intermediate Representation (IR) Generation, 
+an aggressive Four-Pass IR Optimization step, and finally Machine Code Generation. 
+The outputs are functionally complete assembly files tied into the native Windows 
+Command Prompt environment using the GCC linker and standard C libraries (libc).
+
+From detecting minute syntax quirks to folding redundant mathematical operations, 
+this software was built to demonstrate state-of-the-art deterministic compilation 
+strategies natively within a 32-bit ecosystem.
+
+
+2. SUPPORTED LANGUAGE FEATURES (WHAT IT ACCEPTS)
+--------------------------------------------------------------------------------
+The compiler recognizes a strictly defined, strongly-typed subset of the C 
+language. It focuses heavily on integer math, branching logic, array state 
+management, and standardized system input/output.
+
+2.1. Data Types and Variables
+- The primary primitive is `int` (32-bit signed integer).
+- Functions can declare `void` (no return type) or `int`.
+- Variable declarations mandate immediate type assignment (`int x = 5;`) or 
+  unitialized setup (`int x;`).
+
+2.2. Arrays
+- 1-Dimensional static integer arrays are fully supported (`int arr[10];`).
+- Reading/Writing to arrays expects standard bracketed indicies 
+  (e.g., `arr[i] = x;`).
+
+2.3. Control Structures
+- Conditional Branching: Standard `if (condition) { ... } else { ... }`.
+- Looping: Standard `while (condition) { ... }` loops.
+
+2.4. Functions
+- Multi-parameter passing is supported by-value.
+- Scoped logical boundaries (variables inside a function do not leak into globals).
+- Supports recursive calls and basic `return value;` exit protocols.
+
+2.5. Standard Built-in Standard I/O
+- `printf(var)`: Built-in macro that prints integers explicitly mapped to `%d\n`.
+- `scanf(var)`: Built-in macro that takes user keyboard input mapping to `%d`.
+
+2.6. Operators & Expressions
+- Arithmetic: `+` (add), `-` (sub), `*` (mult), `/` (div).
+- Comparison: `==` (equals), `!=` (not equals), `<` (less), `>` (greater), 
+  `<=` (less equal), `>=` (greater equal).
+- Logical: `&&` (AND), `||` (OR), `!` (NOT).
+- Precedence parsing conforms exactly to C-standard evaluation rules.
+
+
+3. THE COMPILER PIPELINE AND ARCHITECTURE
+--------------------------------------------------------------------------------
+The internal engine operates entirely sequentially. Below is an exhaustive 
+breakdown of the modules handling each data transformation.
+
+-----------------------------------------
+PHASE 1: Lexical Analysis (lexer.l)
+-----------------------------------------
+Powered by Flex (Fast Lexical Analyzer), this layer processes the raw `.c` source 
+character-by-character. It matches combinations of ASCII text through Regular 
+Expressions, bundling strings into atomic identifiers called "Tokens".
+
+- Identifies Keywords (`if`, `while`, `int`, `return`, `printf`, `scanf`).
+- Strips completely unneeded characters (whitespace, block comments `/* */`, 
+  and inline comments `//`).
+- Resolves raw integer strings `[0-9]+` directly into numerical `yylval.intval` 
+  payloads so the rest of the compiler works with integers, not characters.
+- Maintains strict `yylineno` tracking so that when an error arises anywhere 
+  else in the pipeline, the exact line is known.
+- Yields a stream of `T_something` tokens. Rejects unknown tokens (like `$`) 
+  immediately, triggering the global error interceptor.
+
+-----------------------------------------
+PHASE 2: Syntax Analysis (parser.y & ast.c)
+-----------------------------------------
+Powered by Bison, this phase implements an LALR(1) parser. It pulls Tokens from 
+the Lexer and attempts to physically match them against predefined Grammar Rules. 
+If the text matches grammatical expectations (e.g., `T_INT T_IDENTIFIER T_ASSIGN 
+T_INT_LITERAL T_SEMICOLON`), it groups them into an Abstract Syntax Tree (AST).
+
+* The Abstract Syntax Tree:
+Rather than a flat file, the parsed program is loaded into system memory via 
+`ast.c` as a deeply branched tree structure of `ASTNode` objects. 
+- Leaves are numbers (`NODE_LITERAL`) or variables (`NODE_IDENTIFIER`).
+- Branches are Operations (`NODE_BINARY`, `NODE_IF`, `NODE_WHILE`). 
+The AST completely eliminates "punctuation" (no more parenthesis, semicolons, or 
+brackets). It represents pure behavioral logic, natively executing `print_ast()` 
+bottom-up to let you visualize your code's nested nature.
+
+-----------------------------------------
+PHASE 3: Semantic Analysis (symbol_table.c)
+-----------------------------------------
+Code might be grammatically correct but logically flawed (e.g., `x = 5;` without 
+`int x;` ever being declared). The Semantic Analyzer safeguards logic execution.
+
+* Scope Stack Implementation:
+The `symbol_table` utilizes an array-backed stack. Every time the code drops 
+into a `{`, an `enter_scope()` happens. Variables written to that scope are 
+isolated. On `}`, an `exit_scope()` purges them.
+
+The analyzer strictly intercepts:
+1. Redeclarations (creating `int x;` twice in the same block).
+2. Undeclared usage (reading `y` before defining it).
+3. Linking functions with parameter capacities to ensure `too many parameters` 
+   or `function not found` never make it to runtime.
+
+-----------------------------------------
+PHASE 4: Intermediate Representation (tac_gen.c & tac.c)
+-----------------------------------------
+Machine code (x86 assembly) is incredibly primitive. CPUs don't understand 
+`x = (y + 5) * 2;`. To bridge the gap, the compiler destructs the complex AST 
+into "Three-Address Code" (TAC). 
+
+TAC breaks complex math into single-operation lines, assigning results into 
+fake, virtual registers using `temp.c` (like `t0`, `t1`, `t2`). 
+
+AST: `x = (y + 5) * 2;`
+Becomes TAC:
+`t0 = y + 5`
+`t1 = t0 * 2`
+`x = t1`
+
+Furthermore, `while` and `if` loops are converted completely into `goto` and 
+`ifFalse` conditional jumps attached to dynamically generated virtual labels 
+(`L0`, `L1`). This completely flattens the hierarchy into a linear sequence 
+of instructions inside a linked list of `TAC*` structures.
+
+-----------------------------------------
+PHASE 5: Aggressive TAC Optimization (optimizer.c)
+-----------------------------------------
+Raw TAC generation usually results in extreme operational bloat. The compiler 
+executes a highly aggressive 4-pass loop over the TAC sequence, trimming it 
+until no further mathematical modifications are possible.
+
+- Pass 1: Constant Folding.
+  The engine looks for pure literal math.
+  If it finds `t0 = 5 + 10`, it natively evaluates it and overwrites it as 
+  `t0 = 15`. This prevents the computer from wasting cycles adding constants.
+- Pass 2: Constant Propagation.
+  If a variable is statically assigned (`x = 5`), the engine pushes `5` directly 
+  into every subsequent usage of `x` (until `x` is modified).
+- Pass 3: Copy Propagation.
+  If `x = y`, all uses of `x` are directly swapped to `y`, deleting unnecessary 
+  chain-of-custody variables.
+- Pass 4: Dead Code Elimination (DCE).
+  After folding, many virtual `t(n)` variables are generated but never used. 
+  DCE scans forward. If `t1` is assigned but never evaluated anywhere down 
+  the file, the instruction is entirely erased from memory. It acts recursively.
+
+-----------------------------------------
+PHASE 6: Code Generation (codegen.c)
+-----------------------------------------
+The final optimized TAC is converted straight into 32-bit x86 Intel Assembly. 
+
+* The Stack Frame Map:
+Before writing code, `codegen` performs a scouting pass over the TAC sequence. 
+Every unique local variable and temporary variable is mapped backwards against 
+the Base Pointer (`ebp`). Variable `x` might become `[ebp-4]`, `t0` becomes 
+`[ebp-8]`. Arrays dynamically pull `elems * 4 bytes` worth of contiguous block.
+
+* Standard Executions:
+- Variable math assigns `[ebp-x]` payload into system hardware register `eax`.
+- Operates on `ecx` (the secondary register).
+- The final product pushes back from `eax` into the target `[ebp-y]` pointer.
+
+* I/O (Printf / Scanf):
+To talk to the operating system, `codegen` implements `extern _printf` and 
+`extern _scanf`. It links specific system memory segments `.data` carrying 
+hardcoded formatted arrays (`fmt_scan db "%d", 0`). 
+By pushing the pointer `lea eax, [ebp-x]`, injecting the format, and firing 
+`call _scanf`, the runtime perfectly taps the Windows input stream natively.
+
+
+4. THE ERROR HANDLING SUBSYSTEM
+--------------------------------------------------------------------------------
+A major feature of this compiler is its highly intuitive contextual debugging 
+engine. Located within `main.c`, the `print_error_line` protocol transforms 
+bare-minimum crashes into deep visibility. 
+
+When a Lexical mismatch, Syntax parser failure, or Semantic redeclaration triggers, 
+the compiler captures the exact `yylineno` integer tracking the source. 
+Rather than just alerting "Syntax Error", it re-opens the original `.c` text 
+file silently in the background, spins down the fgets buffer to match the line, 
+and literally echoes the user's targeted code snippet straight into the terminal.
+
+Example Fault:
+```
+Parse Error at line 7: syntax error
+    |     }
+
+Parsing Failed!
+```
+
+
+5. EXECUTION AND BUILD GUIDE (HOW TO RUN IT)
+--------------------------------------------------------------------------------
+To use this compiler, your Windows architecture must have standard C networking 
+tools available in the global Path: GCC (MinGW), Flex, Bison, and NASM.
+
+==============================================
+STEP I: Compiling the Compiler Itself
+==============================================
+You must use Flex and Bison to pre-calculate the regex lexers and grammatical 
+state machines, dropping them into generated `.c` files, then gluing it all 
+together with `gcc`.
+
+1. Generate the Lexer: 
+   `flex lexer.l`
+2. Generate the Parser (with headers): 
+   `bison -d parser.y`
+3. Compile all native sources into the Windows Executable:
+   `gcc main.c lex.yy.c parser.tab.c symbol_table.c ast.c tac.c tac_gen.c optimizer.c codegen.c temp.c -o compiler.exe`
+
+Result: A fully self-contained `compiler.exe`.
+
+==============================================
+STEP II: Processing C Code to Assembly
+==============================================
+Write standard C code adhering to the language formats listed above. Save it 
+as a file, for example, `my_program.c`.
+
+1. Pass the file sequentially into your fresh compiler:
+   `.\compiler.exe my_program.c`
+
+The terminal will instantly spit out the tracking metrics:
+- Total Token Stream logging
+- AST Tree structural mapping
+- Final Parameterized Symbol Table
+- Three-Address Code listing
+- Optimizer Savings Output
+- And finally: `[codegen] x86 assembly written to: output.asm`
+
+==============================================
+STEP III: Assembling via NASM
+==============================================
+Your `output.asm` is low-level Intel architecture, but it isn't binary machine 
+code yet. NASM bridges the architecture into a Windows `.obj` package.
+
+1. Tell NASM to format as 32-bit Windows Machine logic:
+   `nasm -f win32 output.asm -o output.obj`
+
+==============================================
+STEP IV: Linking with GCC
+==============================================
+Finally, the machine code has unresolved links (`extern _printf`). GCC will 
+inject exactly what those commands mean directly from the native system DLLs.
+
+1. Ensure 32-bit compilation linking mapping to `program.exe`:
+   `gcc -m32 output.obj -o program.exe`
+
+==============================================
+STEP V: Execution!
+==============================================
+Your final product is a blistering fast, standalone Windows executable program 
+that needs absolutely nothing else to run natively within the system!
+
+1. Simply execute it via PowerShell or Command Prompt:
+   `.\program.exe`
+
+If your code had a `scanf` command, the program will silently hang waiting for 
+you to input a number and press Enter. If it has mathematical operations, it 
+calculates them virtually on the system CPU executing directly at machine-level.
+
+
+6. CLOSING REMARKS
+--------------------------------------------------------------------------------
+This documentation highlights the incredibly advanced progression mapping of 
+a standalone multi-phase compiler pipeline. From handling isolated error 
+intercepts to executing localized Dead-Code elimination looping, the tool 
+optimizes and directly generates native machine binaries with absolute fidelity.

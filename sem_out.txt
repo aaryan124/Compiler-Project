@@ -1,0 +1,29 @@
+
+--- TOKEN STREAM ---
+TOKEN                | LEXEME               | LINE      
+------------------------------------------------
+T_INT                | int                  | 1         
+T_IDENTIFIER         | main                 | 1         
+T_LPAREN             | (                    | 1         
+T_RPAREN             | )                    | 1         
+T_LBRACE             | {                    | 1         
+T_INT                | int                  | 2         
+T_IDENTIFIER         | x                    | 2         
+T_ASSIGN             | =                    | 2         
+T_INT_LITERAL        | 10                   | 2         
+T_SEMICOLON          | ;                    | 2         
+T_INT                | int                  | 5         
+T_IDENTIFIER         | x                    | 5         
+T_ASSIGN             | =                    | 5         
+T_INT_LITERAL        | 20                   | 5         
+T_SEMICOLON          | ;                    | 5         
+T_IDENTIFIER         | y                    | 8         
+T_ASSIGN             | =                    | 8         
+T_INT_LITERAL        | 30                   | 8         
+T_SEMICOLON          | ;                    | 8         
+T_RETURN             | return               | 10        
+T_INT_LITERAL        | 0                    | 10        
+T_SEMICOLON          | ;                    | 10        
+T_RBRACE             | }                    | 11        
+Semantic Error at line 5: redeclaration of 'x'
+    |     int x = 20; 

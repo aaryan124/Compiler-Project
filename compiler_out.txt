@@ -1,0 +1,34 @@
+
+--- TOKEN STREAM ---
+TOKEN                | LEXEME               | LINE      
+------------------------------------------------
+T_INT                | int                  | 1         
+T_IDENTIFIER         | main                 | 1         
+T_LPAREN             | (                    | 1         
+T_RPAREN             | )                    | 1         
+T_LBRACE             | {                    | 1         
+T_INT                | int                  | 2         
+T_IDENTIFIER         | x                    | 2         
+T_SEMICOLON          | ;                    | 2         
+T_IF                 | if                   | 3         
+T_LPAREN             | (                    | 3         
+T_IDENTIFIER         | x                    | 3         
+T_GT                 | >                    | 3         
+T_INT_LITERAL        | 5                    | 3         
+T_RPAREN             | )                    | 3         
+T_LBRACE             | {                    | 3         
+T_RBRACE             | }                    | 4         
+T_PRINTF             | printf               | 5         
+T_LPAREN             | (                    | 5         
+T_INT_LITERAL        | 99                   | 5         
+T_INT_LITERAL        | 99                   | 5         
+T_RPAREN             | )                    | 5         
+T_SEMICOLON          | ;                    | 5         
+T_RETURN             | return               | 6         
+T_INT_LITERAL        | 0                    | 6         
+T_SEMICOLON          | ;                    | 6         
+T_RBRACE             | }                    | 7         
+Parse Error at line 5: syntax error
+    |     printf(99 99); // Parse error: multiple ints without operator
+
+Parsing Failed!

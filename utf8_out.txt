@@ -1,0 +1,37 @@
+test4.c: In function 'main':
+test4.c:41:5: warning: implicit declaration of function 'printf' [-Wimplicit-function-declaration]
+     printf(result);
+     ^~~~~~
+test4.c:41:5: warning: incompatible implicit declaration of built-in function 'printf'
+test4.c:41:5: note: include '<stdio.h>' or provide a declaration of 'printf'
+test4.c:41:12: warning: passing argument 1 of 'printf' makes pointer from integer without a cast [-Wint-conversion]
+     printf(result);
+            ^~~~~~
+test4.c:41:12: note: expected 'const char *' but argument is of type 'int'
+test4.c:44:12: warning: passing argument 1 of 'printf' makes pointer from integer without a cast [-Wint-conversion]
+     printf(check);
+            ^~~~~
+test4.c:44:12: note: expected 'const char *' but argument is of type 'int'
+test4.c:47:16: warning: passing argument 1 of 'printf' makes pointer from integer without a cast [-Wint-conversion]
+         printf(result + check);
+                ^~~~~~
+test4.c:47:16: note: expected 'const char *' but argument is of type 'int'
+test_error.c: In function 'main':
+test_error.c:3:9: error: redeclaration of 'x' with no linkage
+     int x; // Semantic error: redeclaration
+         ^
+test_error.c:2:9: note: previous declaration of 'x' was here
+     int x;
+         ^
+test_error.c:4:9: error: 'y' undeclared (first use in this function)
+     if (y > 5) { // Semantic error: y undeclared
+         ^
+test_error.c:4:9: note: each undeclared identifier is reported only once for each function it appears in
+test_error.c:5:9: error: '$z' undeclared (first use in this function)
+         $z = 2; // Lexical error: $ is invalid character
+         ^~
+test_error.c:7:5: warning: implicit declaration of function 'printf' [-Wimplicit-function-declaration]
+     printf("hello"); // Parse error: missing args or unsupported printf syntax maybe?
+     ^~~~~~
+test_error.c:7:5: warning: incompatible implicit declaration of built-in function 'printf'
+test_error.c:7:5: note: include '<stdio.h>' or provide a declaration of 'printf'

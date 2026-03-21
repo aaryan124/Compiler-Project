@@ -1,0 +1,68 @@
+
+--- TOKEN STREAM ---
+TOKEN                | LEXEME               | LINE      
+------------------------------------------------
+T_INT                | int                  | 1         
+T_IDENTIFIER         | main                 | 1         
+T_LPAREN             | (                    | 1         
+T_RPAREN             | )                    | 1         
+T_LBRACE             | {                    | 1         
+T_INT                | int                  | 2         
+T_IDENTIFIER         | x                    | 2         
+T_SEMICOLON          | ;                    | 2         
+T_SCANF              | scanf                | 3         
+T_LPAREN             | (                    | 3         
+T_IDENTIFIER         | x                    | 3         
+T_RPAREN             | )                    | 3         
+T_SEMICOLON          | ;                    | 3         
+T_PRINTF             | printf               | 4         
+T_LPAREN             | (                    | 4         
+T_IDENTIFIER         | x                    | 4         
+T_RPAREN             | )                    | 4         
+T_SEMICOLON          | ;                    | 4         
+T_RETURN             | return               | 5         
+T_INT_LITERAL        | 0                    | 5         
+T_SEMICOLON          | ;                    | 5         
+T_RBRACE             | }                    | 6         
+
+Parsing Successful!
+
+--- AST ---
+Program
+  Function: main
+    Block
+      VarDecl: x
+      Scanf: x
+      Printf
+        Identifier: x
+      Return
+        Literal: 0
+
+===== SYMBOL TABLE =====
+Scope 0:
+  main | function | int | params=0
+========================
+
+===== THREE ADDRESS CODE =====
+main:
+scan x
+print x
+return 0
+==============================
+
+===== OPTIMIZER =====
+[optimizer] constant folding:      nothing to fold
+[optimizer] constant propagation:  nothing to propagate
+[optimizer] copy propagation:      nothing to propagate
+[optimizer] dead code elimination: nothing to remove
+[optimizer] instructions before: 4  |  after: 4  |  saved: 0
+=====================
+
+===== OPTIMIZED THREE ADDRESS CODE =====
+main:
+   = scan x
+   = print x
+  return 0
+=========================================
+[codegen] x86 assembly written to: output.asm
+[codegen] Assemble & link: nasm -f win32 output.asm -o output.obj && gcc -m32 output.obj -o program.exe
